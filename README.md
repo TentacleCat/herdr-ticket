@@ -12,7 +12,9 @@ source of truth and changes stay git-native.
 - Create, close, and reopen tickets through the `tk` command.
 - Search by ID, title, status, type, assignee, or tag.
 - Ticket details include priority, dependencies, tags, assignee, and description.
-- The Dependencies view shows prerequisites, missing references, and ready or waiting state.
+- The Dependencies view shows one topologically ordered row per ticket. It highlights
+  selected direct inputs and dependents, and reports missing references and
+  ready or waiting state.
 - Watches `.tickets/*.md` and reloads after external `tk` writes.
 - Floating popup and split sidebar entrypoints.
 - Reads the active Herdr workspace context, with `--root` and `TICKETS_DIR` overrides.
