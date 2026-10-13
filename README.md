@@ -7,11 +7,13 @@ source of truth and changes stay git-native.
 
 ## Features
 
-- Kanban, List, and Table views.
+- Kanban, List, Table, and Dependencies views.
 - Move tickets between `open`, `in_progress`, and `closed` with `v` then `h`/`l`.
 - Create, close, and reopen tickets through the `tk` command.
 - Search by ID, title, status, type, assignee, or tag.
 - Ticket details include priority, dependencies, tags, assignee, and description.
+- The Dependencies view shows prerequisites, missing references, and ready or waiting state.
+- Watches `.tickets/*.md` and reloads after external `tk` writes.
 - Floating popup and split sidebar entrypoints.
 - Reads the active Herdr workspace context, with `--root` and `TICKETS_DIR` overrides.
 
@@ -66,7 +68,7 @@ herdr plugin link .
 
 | Key | Action |
 | --- | --- |
-| `K` / `Tab` | Cycle Kanban, List, and Table |
+| `K` / `Tab` | Cycle Kanban, List, Table, and Dependencies |
 | `j` / `k` | Move selection |
 | `h` / `l` | Change Kanban column |
 | `v`, then `h` / `l` | Move the selected ticket to an adjacent status |
@@ -82,7 +84,9 @@ herdr plugin link .
 
 Ticket status changes and creation run as argv-based `tk` subprocesses. The
 board does not maintain a second issue database. Closed tickets are hidden by
-default; press `C` to show them again.
+default; press `C` to show them again. The board watches the `.tickets/`
+directory for Markdown file changes and refreshes after `tk` or another editor
+writes a ticket. Other repository and GitHub changes do not trigger reloads.
 
 ## Local development
 
