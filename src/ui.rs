@@ -881,8 +881,26 @@ fn draw_graph(frame: &mut Frame<'_>, area: Rect, app: &App) {
         .iter()
         .map(|ticket| (ticket.id.as_str(), ticket))
         .collect::<HashMap<_, _>>();
-    let title_width = area.width.saturating_sub(40).max(8) as usize;
-    let dependency_width = area.width.saturating_sub(28).max(8) as usize;
+    let selected = app.selected_ticket();
+    let selected_id = selected.map(|ticket| ticket.id.clone());
+    let selected_dependencies = selected
+        .map(|ticket| ticket.dependencies.clone())
+        .unwrap_or_default();
+    let selected_dependents = selected_id
+        .as_deref()
+        .map(|selected_id| {
+            app.tickets
+                .iter()
+                .filter(|ticket| {
+                    ticket
+                        .dependencies
+                        .iter()
+                        .any(|dependency| dependency == selected_id)
+                })
+                .map(|ticket| ticket.id.as_str())
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
     let items = tickets
         .iter()
         .map(|ticket| {
@@ -892,13 +910,42 @@ fn draw_graph(frame: &mut Frame<'_>, area: Rect, app: &App) {
                 "WAITING" => Color::Yellow,
                 _ => Color::Red,
             };
-            let mut lines = vec![Line::from(vec![
-                Span::styled("├─ ", Style::default().fg(Color::DarkGray)),
+            let (relation, relation_color) = if selected_id.as_deref() == Some(ticket.id.as_str()) {
+                ("●", Color::Yellow)
+            } else if selected_dependencies
+                .iter()
+                .any(|dependency| dependency == &ticket.id)
+            {
+                ("←", Color::Green)
+            } else if selected_dependents.contains(&ticket.id.as_str()) {
+                ("→", Color::Cyan)
+            } else {
+                ("·", Color::DarkGray)
+            };
+            let edge_label = if ticket.dependencies.is_empty() {
+                "root".to_owned()
+            } else {
+                format!("← {}", ticket.dependencies.join(","))
+            };
+            let available = area.width.saturating_sub(ticket.id.len() as u16 + 11) as usize;
+            let tail_width = available.saturating_sub(8).min(40);
+            let title_width = available.saturating_sub(tail_width);
+            let tail = truncate(
+                &format!("{} · {state} · {edge_label}", status_label(&ticket.status)),
+                tail_width,
+            );
+            ListItem::new(Line::from(vec![
+                Span::styled(
+                    format!("{relation} "),
+                    Style::default()
+                        .fg(relation_color)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::styled(
                     status_glyph(&ticket.status),
                     Style::default().fg(dependency_color(&ticket.status)),
                 ),
-                Span::raw(" "),
+                Span::raw("  "),
                 Span::styled(
                     ticket.id.as_str(),
                     Style::default()
@@ -911,52 +958,8 @@ fn draw_graph(frame: &mut Frame<'_>, area: Rect, app: &App) {
                     Style::default().fg(Color::White),
                 ),
                 Span::raw("  "),
-                Span::styled(
-                    format!("{} · {state}", status_label(&ticket.status)),
-                    Style::default().fg(state_color),
-                ),
-            ])];
-
-            if ticket.dependencies.is_empty() {
-                lines.push(Line::from(Span::styled(
-                    "│  └─ READY · no prerequisites",
-                    Style::default().fg(Color::DarkGray),
-                )));
-            } else {
-                for (index, dependency) in ticket.dependencies.iter().enumerate() {
-                    let last = index + 1 == ticket.dependencies.len();
-                    let branch = if last { "└─ ← " } else { "├─ ← " };
-                    let mut spans = vec![
-                        Span::styled("│  ", Style::default().fg(Color::DarkGray)),
-                        Span::styled(branch, Style::default().fg(Color::DarkGray)),
-                        Span::styled(
-                            dependency.as_str(),
-                            Style::default()
-                                .fg(Color::Cyan)
-                                .add_modifier(Modifier::BOLD),
-                        ),
-                    ];
-                    if let Some(target) = tickets_by_id.get(dependency.as_str()) {
-                        spans.push(Span::raw("  "));
-                        spans.push(Span::styled(
-                            format!("[{}]", status_label(&target.status)),
-                            Style::default().fg(dependency_color(&target.status)),
-                        ));
-                        spans.push(Span::raw(" "));
-                        spans.push(Span::styled(
-                            truncate(&target.title, dependency_width),
-                            Style::default().fg(Color::DarkGray),
-                        ));
-                    } else {
-                        spans.push(Span::styled(
-                            "  [missing ticket]",
-                            Style::default().fg(Color::Red),
-                        ));
-                    }
-                    lines.push(Line::from(spans));
-                }
-            }
-            ListItem::new(lines)
+                Span::styled(tail, Style::default().fg(state_color)),
+            ]))
         })
         .collect::<Vec<_>>();
 
@@ -966,7 +969,7 @@ fn draw_graph(frame: &mut Frame<'_>, area: Rect, app: &App) {
     frame.render_stateful_widget(
         List::new(items)
             .block(Block::default().borders(Borders::ALL).title(format!(
-                "Dependencies  {}  (← means depends on)",
+                "DAG  {}  (← prerequisites · → unlocks · ● selected)",
                 tickets.len()
             )))
             .highlight_style(Style::default().bg(Color::Rgb(39, 48, 68)).fg(Color::White))
@@ -1027,6 +1030,23 @@ fn draw_detail(frame: &mut Frame<'_>, area: Rect, app: &App) {
         lines.push(Line::from(vec![
             Span::styled("Depends  ", Style::default().fg(Color::DarkGray)),
             Span::raw(ticket.dependencies.join(", ")),
+        ]));
+    }
+    let unlocks = app
+        .tickets
+        .iter()
+        .filter(|candidate| {
+            candidate
+                .dependencies
+                .iter()
+                .any(|dependency| dependency == &ticket.id)
+        })
+        .map(|candidate| candidate.id.as_str())
+        .collect::<Vec<_>>();
+    if !unlocks.is_empty() {
+        lines.push(Line::from(vec![
+            Span::styled("Unlocks  ", Style::default().fg(Color::DarkGray)),
+            Span::raw(unlocks.join(", ")),
         ]));
     }
     if !ticket.description.is_empty() {
@@ -1146,7 +1166,7 @@ fn draw_help(frame: &mut Frame<'_>) {
         Line::from("Enter / d     toggle ticket details"),
         Line::from("/             filter by text"),
         Line::from("C             show or hide closed tickets"),
-        Line::from("Dependencies  prerequisites and ready / waiting state"),
+        Line::from("DAG           one row per ticket; selected inputs / outputs highlighted"),
         Line::from("r             reload from .tickets/ (also watched automatically)"),
         Line::from("q / Esc       close the board"),
         Line::from(""),
