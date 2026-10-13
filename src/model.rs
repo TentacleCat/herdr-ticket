@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use serde_yaml::Value;
 use std::{fs, path::Path};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Ticket {
     pub id: String,
     pub title: String,

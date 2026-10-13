@@ -1,6 +1,7 @@
 use crate::{
     backend,
     model::{status_label, Ticket},
+    watch::TicketWatcher,
 };
 use anyhow::Result;
 use crossterm::{
@@ -23,7 +24,7 @@ use std::{
     collections::{BinaryHeap, HashMap},
     io,
     path::PathBuf,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -224,9 +225,10 @@ impl App {
         self.selected = (self.selected as isize + delta).clamp(0, count as isize - 1) as usize;
     }
 
-    fn refresh(&mut self, selected_id: Option<&str>, status_hint: Option<&str>) {
+    fn refresh(&mut self, selected_id: Option<&str>, status_hint: Option<&str>) -> bool {
         match backend::load(&self.tickets_dir) {
             Ok(tickets) => {
+                let changed = self.tickets != tickets;
                 self.tickets = tickets;
                 if let Some(status) = status_hint {
                     if let Some(index) = self.columns().iter().position(|column| column == status) {
@@ -253,8 +255,12 @@ impl App {
                     }
                 }
                 self.selected = self.selected.min(self.selected_count().saturating_sub(1));
+                changed
             }
-            Err(error) => self.message = format!("Refresh failed: {error:#}"),
+            Err(error) => {
+                self.message = format!("Refresh failed: {error:#}");
+                false
+            }
         }
     }
 
@@ -571,7 +577,14 @@ pub fn run(tickets_dir: PathBuf, tickets: Vec<Ticket>, compact: bool) -> Result<
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
     let mut app = App::new(tickets_dir, tickets, compact);
-    let result = event_loop(&mut terminal, &mut app);
+    let mut watcher = match TicketWatcher::new(&app.tickets_dir) {
+        Ok(watcher) => Some(watcher),
+        Err(error) => {
+            app.message = format!("Auto-refresh unavailable: {error}");
+            None
+        }
+    };
+    let result = event_loop(&mut terminal, &mut app, watcher.as_mut());
 
     disable_raw_mode()?;
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
@@ -579,12 +592,33 @@ pub fn run(tickets_dir: PathBuf, tickets: Vec<Ticket>, compact: bool) -> Result<
     result
 }
 
-fn event_loop(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) -> Result<()> {
+fn event_loop(
+    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    app: &mut App,
+    watcher: Option<&mut TicketWatcher>,
+) -> Result<()> {
+    let mut watcher = watcher;
+    let mut refresh_at: Option<Instant> = None;
     while !app.should_quit {
         terminal.draw(|frame| draw(frame, app))?;
-        if event::poll(Duration::from_millis(200))? {
+        if event::poll(Duration::from_millis(80))? {
             if let Event::Key(key) = event::read()? {
                 app.handle_key(key);
+            }
+        }
+        if watcher
+            .as_deref_mut()
+            .is_some_and(TicketWatcher::tickets_changed)
+        {
+            // `tk` often saves through a temporary file and rename. Debounce
+            // the event burst so one command causes a single reload.
+            refresh_at = Some(Instant::now() + Duration::from_millis(160));
+        }
+        if refresh_at.is_some_and(|deadline| Instant::now() >= deadline) {
+            refresh_at = None;
+            let selected = app.selection_id();
+            if app.refresh(selected.as_deref(), None) {
+                app.message = format!("Tickets updated · {} loaded", app.tickets.len());
             }
         }
     }
@@ -1011,7 +1045,7 @@ fn draw_footer(frame: &mut Frame<'_>, area: Rect, app: &App) {
     let hints = if app.moving {
         "MOVE  h/l move  Esc cancel"
     } else {
-        "K/Tab view  j/k select  v move  a add  x close  o reopen  / filter  C closed  ? help  q/Esc quit"
+        "K/Tab view  j/k select  v move  a add  x close  o reopen  / filter  C closed  r reload  ? help  q/Esc quit"
     };
     let info = if app.message.is_empty() {
         hints.to_owned()
@@ -1113,7 +1147,7 @@ fn draw_help(frame: &mut Frame<'_>) {
         Line::from("/             filter by text"),
         Line::from("C             show or hide closed tickets"),
         Line::from("Dependencies  prerequisites and ready / waiting state"),
-        Line::from("r             reload from .tickets/"),
+        Line::from("r             reload from .tickets/ (also watched automatically)"),
         Line::from("q / Esc       close the board"),
         Line::from(""),
         Line::from(Span::styled(

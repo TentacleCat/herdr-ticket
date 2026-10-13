@@ -1,6 +1,7 @@
 mod backend;
 mod model;
 mod ui;
+mod watch;
 
 use anyhow::{Context, Result};
 use std::{env, path::PathBuf};
