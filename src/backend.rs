@@ -16,15 +16,18 @@ pub fn resolve_tickets_dir(explicit_root: Option<&Path>) -> Result<PathBuf> {
     }
 
     let plugin_root = env::var_os("HERDR_PLUGIN_ROOT").map(PathBuf::from);
-    let mut candidates = Vec::new();
+    let mut context_paths = Vec::new();
     if let Ok(context) = env::var("HERDR_PLUGIN_CONTEXT_JSON") {
         if let Ok(context) = serde_json::from_str::<Value>(&context) {
-            collect_context_paths(&context, &mut candidates);
+            collect_context_paths(&context, &mut context_paths);
         }
     }
 
     let current = env::current_dir().context("could not read the current directory")?;
-    candidates.push(current);
+    let mut candidates = context_paths.clone();
+    if !candidates.contains(&current) {
+        candidates.push(current);
+    }
 
     for candidate in &candidates {
         if let Some(found) = find_existing_tickets_dir(candidate) {
@@ -33,6 +36,17 @@ pub fn resolve_tickets_dir(explicit_root: Option<&Path>) -> Result<PathBuf> {
     }
 
     for candidate in candidates {
+        // Herdr's context paths are explicit workspace hints. When a user
+        // opens the plugin from its own checkout, that workspace can be the
+        // plugin root itself; allow that exact context path to own a future
+        // `.tickets/` directory even though plugin-local cwd fallbacks are
+        // otherwise excluded below.
+        if candidate.is_dir()
+            && context_paths.contains(&candidate)
+            && plugin_root.as_ref() == Some(&candidate)
+        {
+            return Ok(as_tickets_dir(&candidate));
+        }
         if let Some(plugin_root) = &plugin_root {
             if candidate == *plugin_root || candidate.starts_with(plugin_root) {
                 continue;
