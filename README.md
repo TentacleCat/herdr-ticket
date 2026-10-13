@@ -32,21 +32,26 @@ by Herdr before falling back to the current directory. For manual use, pass
 herdr plugin install TentacleCat/herdr-ticket
 ```
 
-Restart the Herdr server after installing. The command palette will show
-**Tickets: open board** and **Tickets: open sidebar**. To bind keys, add this to
-`~/.config/herdr/config.toml`:
+The command palette will show **Tickets: open board** and **Tickets: open
+sidebar**. Herdr plugin actions do not define global keybindings in the plugin
+manifest, so add these recommended defaults to `~/.config/herdr/config.toml`:
 
 ```toml
 [[keys.command]]
-key = "prefix+shift+t"
+key = "prefix+ctrl+t"
 type = "plugin_action"
 command = "herdr-ticket.open-board"
+description = "Open ticket board"
 
 [[keys.command]]
-key = "prefix+shift+alt+t"
+key = "prefix+shift+b"
 type = "plugin_action"
 command = "herdr-ticket.open-sidebar"
+description = "Open ticket sidebar"
 ```
+
+Reload the Herdr config after changing the keybindings. If either key is
+already assigned in your config, reassign or remove that binding first.
 
 ## Use from a checkout
 
