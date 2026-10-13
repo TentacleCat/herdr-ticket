@@ -38,7 +38,7 @@ manifest, so add these recommended defaults to `~/.config/herdr/config.toml`:
 
 ```toml
 [[keys.command]]
-key = "prefix+ctrl+t"
+key = "prefix+shift+t"
 type = "plugin_action"
 command = "herdr-ticket.open-board"
 description = "Open ticket board"
