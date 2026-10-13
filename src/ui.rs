@@ -18,23 +18,33 @@ use ratatui::{
     },
     Frame, Terminal,
 };
-use std::{io, path::PathBuf, time::Duration};
+use std::{
+    cmp::Reverse,
+    collections::{BinaryHeap, HashMap},
+    io,
+    path::PathBuf,
+    time::Duration,
+};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum View {
     Kanban,
     List,
     Table,
+    Graph,
 }
 
 impl View {
     fn next(self, backwards: bool) -> Self {
         match (self, backwards) {
-            (Self::Kanban, false) | (Self::Table, true) => Self::List,
+            (Self::Kanban, false) => Self::List,
             (Self::List, false) => Self::Table,
+            (Self::Table, false) => Self::Graph,
+            (Self::Graph, false) => Self::Kanban,
+            (Self::Kanban, true) => Self::Graph,
             (Self::List, true) => Self::Kanban,
-            (Self::Table, false) => Self::Kanban,
-            (Self::Kanban, true) => Self::Table,
+            (Self::Table, true) => Self::List,
+            (Self::Graph, true) => Self::Table,
         }
     }
 
@@ -43,6 +53,7 @@ impl View {
             Self::Kanban => 0,
             Self::List => 1,
             Self::Table => 2,
+            Self::Graph => 3,
         }
     }
 }
@@ -174,6 +185,13 @@ impl App {
         tickets
     }
 
+    fn visible_graph(&self) -> Vec<&Ticket> {
+        graph_order(&self.tickets)
+            .into_iter()
+            .filter(|ticket| self.matches_filter(ticket))
+            .collect()
+    }
+
     fn selected_ticket(&self) -> Option<&Ticket> {
         match self.view {
             View::Kanban => self
@@ -181,6 +199,7 @@ impl App {
                 .get(self.selected)
                 .copied(),
             View::List | View::Table => self.visible_flat().get(self.selected).copied(),
+            View::Graph => self.visible_graph().get(self.selected).copied(),
         }
     }
 
@@ -192,6 +211,7 @@ impl App {
         match self.view {
             View::Kanban => self.visible_for_status(&self.active_status()).len(),
             View::List | View::Table => self.visible_flat().len(),
+            View::Graph => self.visible_graph().len(),
         }
     }
 
@@ -221,6 +241,10 @@ impl App {
                             .position(|ticket| ticket.id == id),
                         View::List | View::Table => self
                             .visible_flat()
+                            .iter()
+                            .position(|ticket| ticket.id == id),
+                        View::Graph => self
+                            .visible_graph()
                             .iter()
                             .position(|ticket| ticket.id == id),
                     };
@@ -450,6 +474,96 @@ impl App {
     }
 }
 
+fn graph_order(tickets: &[Ticket]) -> Vec<&Ticket> {
+    let indexes = tickets
+        .iter()
+        .enumerate()
+        .map(|(index, ticket)| (ticket.id.as_str(), index))
+        .collect::<HashMap<_, _>>();
+    let mut prerequisites = vec![0; tickets.len()];
+    let mut dependents = vec![Vec::new(); tickets.len()];
+    for (index, ticket) in tickets.iter().enumerate() {
+        let mut resolved = Vec::new();
+        for dependency in &ticket.dependencies {
+            if let Some(dependency_index) = indexes.get(dependency.as_str()).copied() {
+                if !resolved.contains(&dependency_index) {
+                    resolved.push(dependency_index);
+                    dependents[dependency_index].push(index);
+                }
+            }
+        }
+        prerequisites[index] = resolved.len();
+    }
+
+    let mut ready = BinaryHeap::new();
+    for (index, ticket) in tickets.iter().enumerate() {
+        if prerequisites[index] == 0 {
+            ready.push(Reverse((ticket.priority, ticket.id.clone(), index)));
+        }
+    }
+    let mut emitted = vec![false; tickets.len()];
+    let mut ordered = Vec::with_capacity(tickets.len());
+    while let Some(Reverse((_, _, index))) = ready.pop() {
+        emitted[index] = true;
+        ordered.push(&tickets[index]);
+        for dependent in &dependents[index] {
+            prerequisites[*dependent] -= 1;
+            if prerequisites[*dependent] == 0 {
+                let ticket = &tickets[*dependent];
+                ready.push(Reverse((ticket.priority, ticket.id.clone(), *dependent)));
+            }
+        }
+    }
+    // Keep cyclic tickets visible after all nodes that can be ordered.
+    if ordered.len() < tickets.len() {
+        let mut remaining = (0..tickets.len())
+            .filter(|index| !emitted[*index])
+            .collect::<Vec<_>>();
+        remaining.sort_by(|left, right| {
+            tickets[*left]
+                .priority
+                .cmp(&tickets[*right].priority)
+                .then(tickets[*left].id.cmp(&tickets[*right].id))
+        });
+        ordered.extend(remaining.into_iter().map(|index| &tickets[index]));
+    }
+    ordered
+}
+
+fn dependency_state(ticket: &Ticket, tickets_by_id: &HashMap<&str, &Ticket>) -> &'static str {
+    let mut waiting = false;
+    for dependency in &ticket.dependencies {
+        match tickets_by_id.get(dependency.as_str()) {
+            Some(candidate) if candidate.status == "closed" => {}
+            Some(_) => waiting = true,
+            None => return "MISSING",
+        }
+    }
+    if waiting {
+        "WAITING"
+    } else {
+        "READY"
+    }
+}
+
+fn status_glyph(status: &str) -> &'static str {
+    match status {
+        "closed" => "●",
+        "in_progress" => "◉",
+        "open" => "○",
+        _ => "◌",
+    }
+}
+
+fn dependency_color(status: &str) -> Color {
+    match status {
+        "closed" => Color::Green,
+        "in_progress" => Color::Yellow,
+        "open" => Color::Cyan,
+        _ => Color::DarkGray,
+    }
+}
+
 pub fn run(tickets_dir: PathBuf, tickets: Vec<Ticket>, compact: bool) -> Result<()> {
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -542,6 +656,7 @@ fn draw_toolbar(frame: &mut Frame<'_>, area: Rect, app: &App) {
         Line::from("Kanban"),
         Line::from("List"),
         Line::from("Table"),
+        Line::from("Dependencies"),
     ])
     .select(app.view.index())
     .highlight_style(
@@ -557,6 +672,7 @@ fn draw_board(frame: &mut Frame<'_>, area: Rect, app: &App) {
         View::Kanban => draw_kanban(frame, area, app),
         View::List => draw_list(frame, area, app),
         View::Table => draw_table(frame, area, app),
+        View::Graph => draw_graph(frame, area, app),
     }
 }
 
@@ -724,6 +840,108 @@ fn draw_table(frame: &mut Frame<'_>, area: Rect, app: &App) {
     );
 }
 
+fn draw_graph(frame: &mut Frame<'_>, area: Rect, app: &App) {
+    let tickets = app.visible_graph();
+    let tickets_by_id = app
+        .tickets
+        .iter()
+        .map(|ticket| (ticket.id.as_str(), ticket))
+        .collect::<HashMap<_, _>>();
+    let title_width = area.width.saturating_sub(40).max(8) as usize;
+    let dependency_width = area.width.saturating_sub(28).max(8) as usize;
+    let items = tickets
+        .iter()
+        .map(|ticket| {
+            let state = dependency_state(ticket, &tickets_by_id);
+            let state_color = match state {
+                "READY" => Color::Green,
+                "WAITING" => Color::Yellow,
+                _ => Color::Red,
+            };
+            let mut lines = vec![Line::from(vec![
+                Span::styled("├─ ", Style::default().fg(Color::DarkGray)),
+                Span::styled(
+                    status_glyph(&ticket.status),
+                    Style::default().fg(dependency_color(&ticket.status)),
+                ),
+                Span::raw(" "),
+                Span::styled(
+                    ticket.id.as_str(),
+                    Style::default()
+                        .fg(Color::Cyan)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::raw("  "),
+                Span::styled(
+                    truncate(&ticket.title, title_width),
+                    Style::default().fg(Color::White),
+                ),
+                Span::raw("  "),
+                Span::styled(
+                    format!("{} · {state}", status_label(&ticket.status)),
+                    Style::default().fg(state_color),
+                ),
+            ])];
+
+            if ticket.dependencies.is_empty() {
+                lines.push(Line::from(Span::styled(
+                    "│  └─ READY · no prerequisites",
+                    Style::default().fg(Color::DarkGray),
+                )));
+            } else {
+                for (index, dependency) in ticket.dependencies.iter().enumerate() {
+                    let last = index + 1 == ticket.dependencies.len();
+                    let branch = if last { "└─ ← " } else { "├─ ← " };
+                    let mut spans = vec![
+                        Span::styled("│  ", Style::default().fg(Color::DarkGray)),
+                        Span::styled(branch, Style::default().fg(Color::DarkGray)),
+                        Span::styled(
+                            dependency.as_str(),
+                            Style::default()
+                                .fg(Color::Cyan)
+                                .add_modifier(Modifier::BOLD),
+                        ),
+                    ];
+                    if let Some(target) = tickets_by_id.get(dependency.as_str()) {
+                        spans.push(Span::raw("  "));
+                        spans.push(Span::styled(
+                            format!("[{}]", status_label(&target.status)),
+                            Style::default().fg(dependency_color(&target.status)),
+                        ));
+                        spans.push(Span::raw(" "));
+                        spans.push(Span::styled(
+                            truncate(&target.title, dependency_width),
+                            Style::default().fg(Color::DarkGray),
+                        ));
+                    } else {
+                        spans.push(Span::styled(
+                            "  [missing ticket]",
+                            Style::default().fg(Color::Red),
+                        ));
+                    }
+                    lines.push(Line::from(spans));
+                }
+            }
+            ListItem::new(lines)
+        })
+        .collect::<Vec<_>>();
+
+    let mut state = ListState::default();
+    state
+        .select((!tickets.is_empty()).then_some(app.selected.min(tickets.len().saturating_sub(1))));
+    frame.render_stateful_widget(
+        List::new(items)
+            .block(Block::default().borders(Borders::ALL).title(format!(
+                "Dependencies  {}  (← means depends on)",
+                tickets.len()
+            )))
+            .highlight_style(Style::default().bg(Color::Rgb(39, 48, 68)).fg(Color::White))
+            .highlight_symbol("› "),
+        area,
+        &mut state,
+    );
+}
+
 fn draw_detail(frame: &mut Frame<'_>, area: Rect, app: &App) {
     let Some(ticket) = app.selected_ticket() else {
         frame.render_widget(
@@ -884,7 +1102,7 @@ fn draw_help(frame: &mut Frame<'_>) {
                 .add_modifier(Modifier::BOLD),
         )),
         Line::from(""),
-        Line::from("K / Tab       cycle Kanban, List, Table"),
+        Line::from("K / Tab       cycle Kanban, List, Table, Dependencies"),
         Line::from("j / k         move selection"),
         Line::from("h / l         change kanban column"),
         Line::from("v then h/l    move selected ticket to another status"),
@@ -894,6 +1112,7 @@ fn draw_help(frame: &mut Frame<'_>) {
         Line::from("Enter / d     toggle ticket details"),
         Line::from("/             filter by text"),
         Line::from("C             show or hide closed tickets"),
+        Line::from("Dependencies  prerequisites and ready / waiting state"),
         Line::from("r             reload from .tickets/"),
         Line::from("q / Esc       close the board"),
         Line::from(""),
