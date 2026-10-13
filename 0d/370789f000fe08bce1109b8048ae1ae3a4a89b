@@ -1,0 +1,32 @@
+examples/dag-demo/.tickets/dag-demo-05.md
+  s_a4167ddb55b255::t_470619cd258aa8 1-11
+examples/dag-demo/README.md
+  s_a4167ddb55b255::t_616fff27b95f3a 17-24
+  s_a4167ddb55b255::t_470619cd258aa8 1-16,25
+examples/dag-demo/.tickets/dag-demo-02.md
+  s_a4167ddb55b255::t_470619cd258aa8 1-11
+examples/dag-demo/.tickets/dag-demo-04.md
+  s_a4167ddb55b255::t_470619cd258aa8 1-12
+examples/dag-demo/.tickets/dag-demo-06.md
+  s_a4167ddb55b255::t_470619cd258aa8 1-12
+examples/dag-demo/.tickets/dag-demo-01.md
+  s_a4167ddb55b255::t_470619cd258aa8 1-11
+examples/dag-demo/.tickets/dag-demo-03.md
+  s_a4167ddb55b255::t_470619cd258aa8 1-11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0d370789f000fe08bce1109b8048ae1ae3a4a89b",
+  "prompts": {},
+  "sessions": {
+    "s_a4167ddb55b255": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1352a-3a1f-7dd0-83d2-750dae52ee98",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "TentacleCat <131333217+TentacleCat@users.noreply.github.com>"
+    }
+  }
+}
