@@ -9,6 +9,7 @@ repository = "https://github.com/TentacleCat/herdr-ticket"
 [dependencies]
 anyhow = "1.0"
 crossterm = "0.28"
+notify = "8.2"
 ratatui = "0.29"
 serde_json = "1.0"
 serde_yaml = "0.9"
