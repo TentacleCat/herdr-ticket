@@ -1,0 +1,19 @@
+README.md
+  s_a4167ddb55b255::t_a2dde1ebb30925 15-17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1d3247e2f24349c9296bb164d43ca4f6cad0b71d",
+  "prompts": {},
+  "sessions": {
+    "s_a4167ddb55b255": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1352a-3a1f-7dd0-83d2-750dae52ee98",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "TentacleCat <131333217+TentacleCat@users.noreply.github.com>"
+    }
+  }
+}
