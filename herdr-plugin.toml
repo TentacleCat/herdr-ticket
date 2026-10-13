@@ -1,0 +1,35 @@
+id = "herdr-ticket"
+name = "Ticket Board"
+version = "0.1.0"
+min_herdr_version = "0.7.5"
+description = "A Herdr board for git-native tickets managed by wedow/ticket"
+platforms = ["linux", "macos", "windows"]
+
+[[build]]
+command = ["cargo", "build", "--release"]
+
+[[panes]]
+id = "board"
+title = "Ticket Board"
+placement = "popup"
+width = "90%"
+height = "85%"
+command = ["cargo", "run", "--quiet", "--release"]
+
+[[panes]]
+id = "sidebar"
+title = "Ticket Sidebar"
+placement = "split"
+command = ["cargo", "run", "--quiet", "--release", "--", "--compact"]
+
+[[actions]]
+id = "open-board"
+title = "Tickets: open board"
+contexts = ["workspace"]
+command = ["cargo", "run", "--quiet", "--release", "--", "open-board"]
+
+[[actions]]
+id = "open-sidebar"
+title = "Tickets: open sidebar"
+contexts = ["workspace"]
+command = ["cargo", "run", "--quiet", "--release", "--", "open-sidebar"]
