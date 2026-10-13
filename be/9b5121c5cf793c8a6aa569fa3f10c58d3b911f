@@ -1,0 +1,21 @@
+Cargo.toml
+  s_a4167ddb55b255::t_12c1eabf3d9b9d 12
+Cargo.lock
+  s_a4167ddb55b255::t_f0afa8ada66509 145-153,183,214-233,262-281,336-362,465-473,669-678,701-709,728-737,755-779,788-793,800-805,812-817,824-829,836-841,848-853,860-865,872-877
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "be9b5121c5cf793c8a6aa569fa3f10c58d3b911f",
+  "prompts": {},
+  "sessions": {
+    "s_a4167ddb55b255": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1352a-3a1f-7dd0-83d2-750dae52ee98",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "TentacleCat <131333217+TentacleCat@users.noreply.github.com>"
+    }
+  }
+}
