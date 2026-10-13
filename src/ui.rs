@@ -871,97 +871,169 @@ struct GraphEdge {
     target: usize,
 }
 
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy)]
 struct GraphCell {
-    ports: u8,
+    glyph: char,
+    color: Color,
+    modifier: Modifier,
 }
 
-const GRAPH_UP: u8 = 1;
-const GRAPH_DOWN: u8 = 2;
-const GRAPH_LEFT: u8 = 4;
-const GRAPH_RIGHT: u8 = 8;
-const GRAPH_UP_DOWN: u8 = GRAPH_UP | GRAPH_DOWN;
-const GRAPH_LEFT_RIGHT: u8 = GRAPH_LEFT | GRAPH_RIGHT;
-const GRAPH_DOWN_RIGHT: u8 = GRAPH_DOWN | GRAPH_RIGHT;
-const GRAPH_UP_RIGHT: u8 = GRAPH_UP | GRAPH_RIGHT;
-const GRAPH_DOWN_LEFT: u8 = GRAPH_DOWN | GRAPH_LEFT;
-const GRAPH_UP_LEFT: u8 = GRAPH_UP | GRAPH_LEFT;
-const GRAPH_UP_DOWN_RIGHT: u8 = GRAPH_UP | GRAPH_DOWN | GRAPH_RIGHT;
-const GRAPH_UP_DOWN_LEFT: u8 = GRAPH_UP | GRAPH_DOWN | GRAPH_LEFT;
-const GRAPH_UP_LEFT_RIGHT: u8 = GRAPH_UP | GRAPH_LEFT | GRAPH_RIGHT;
-const GRAPH_DOWN_LEFT_RIGHT: u8 = GRAPH_DOWN | GRAPH_LEFT | GRAPH_RIGHT;
-const GRAPH_ALL: u8 = GRAPH_UP | GRAPH_DOWN | GRAPH_LEFT | GRAPH_RIGHT;
+impl Default for GraphCell {
+    fn default() -> Self {
+        Self {
+            glyph: ' ',
+            color: Color::Reset,
+            modifier: Modifier::empty(),
+        }
+    }
+}
 
-fn graph_layout(tickets: &[&Ticket]) -> (Vec<GraphEdge>, Vec<usize>, Vec<usize>) {
+fn graph_layers(
+    tickets: &[&Ticket],
+    tickets_by_id: &HashMap<&str, &Ticket>,
+) -> (Vec<GraphEdge>, Vec<Vec<usize>>, Vec<usize>, Vec<usize>) {
     let indexes = tickets
         .iter()
         .enumerate()
         .map(|(index, ticket)| (ticket.id.as_str(), index))
         .collect::<HashMap<_, _>>();
-    let mut pairs = Vec::new();
+    let valid = tickets
+        .iter()
+        .map(|ticket| dependency_state(ticket, tickets_by_id) != "MISSING")
+        .collect::<Vec<_>>();
+    let mut depths = vec![0; tickets.len()];
     for (target, ticket) in tickets.iter().enumerate() {
+        if !valid[target] {
+            continue;
+        }
         for dependency in &ticket.dependencies {
             if let Some(source) = indexes.get(dependency.as_str()).copied() {
-                // Topological ordering puts prerequisites above their dependents.
-                // Backward edges are left in the detail panel rather than drawn
-                // in reverse through the rail layout.
-                if source < target && !pairs.contains(&(source, target)) {
+                if source < target && valid[source] {
+                    depths[target] = depths[target].max(depths[source] + 1);
+                }
+            }
+        }
+    }
+
+    let layer_count = tickets
+        .iter()
+        .enumerate()
+        .filter(|(index, _)| valid[*index])
+        .map(|(index, _)| depths[index] + 1)
+        .max()
+        .unwrap_or(0);
+    let mut layers = vec![Vec::new(); layer_count];
+    for (index, is_valid) in valid.iter().enumerate() {
+        if *is_valid {
+            layers[depths[index]].push(index);
+        }
+    }
+
+    let mut pairs = Vec::new();
+    for (target, ticket) in tickets.iter().enumerate() {
+        if !valid[target] {
+            continue;
+        }
+        for dependency in &ticket.dependencies {
+            if let Some(source) = indexes.get(dependency.as_str()).copied() {
+                if source < target && valid[source] && !pairs.contains(&(source, target)) {
                     pairs.push((source, target));
                 }
             }
         }
     }
     pairs.sort_unstable();
-
-    let mut last_dependents = vec![None; tickets.len()];
     let edges = pairs
         .into_iter()
-        .map(|(source, target)| {
-            last_dependents[source] =
-                Some(last_dependents[source].map_or(target, |last: usize| last.max(target)));
-            GraphEdge { source, target }
-        })
+        .map(|(source, target)| GraphEdge { source, target })
         .collect::<Vec<_>>();
-    let last_dependent_rows = last_dependents
+
+    let missing = valid
         .iter()
         .enumerate()
-        .map(|(row, last)| last.unwrap_or(row))
-        .collect::<Vec<_>>();
-
-    // Keep a ticket on its own rail until its final dependent. A later ticket
-    // can reuse that rail on the same row where the old path reaches it, which
-    // makes ordinary chains compact and lets joins land directly on a node.
-    let mut lane_ends = Vec::new();
-    let mut node_lanes = Vec::with_capacity(tickets.len());
-    for row in 0..last_dependents.len() {
-        let lane = lane_ends
-            .iter()
-            .position(|end| *end <= row)
-            .unwrap_or_else(|| {
-                lane_ends.push(row);
-                lane_ends.len() - 1
-            });
-        lane_ends[lane] = last_dependent_rows[row];
-        node_lanes.push(lane);
-    }
-    (edges, node_lanes, last_dependent_rows)
+        .filter_map(|(index, is_valid)| (!is_valid).then_some(index))
+        .collect();
+    (edges, layers, depths, missing)
 }
 
-fn graph_glyph(ports: u8) -> &'static str {
-    match ports {
-        GRAPH_UP_DOWN => "│",
-        GRAPH_LEFT_RIGHT => "─",
-        GRAPH_DOWN_RIGHT => "┌",
-        GRAPH_UP_RIGHT => "└",
-        GRAPH_DOWN_LEFT => "┐",
-        GRAPH_UP_LEFT => "┘",
-        GRAPH_UP_DOWN_RIGHT => "├",
-        GRAPH_UP_DOWN_LEFT => "┤",
-        GRAPH_UP_LEFT_RIGHT => "┴",
-        GRAPH_DOWN_LEFT_RIGHT => "┬",
-        GRAPH_ALL => "┼",
-        _ => " ",
+fn graph_cell_set(cells: &mut [GraphCell], index: usize, glyph: char, color: Color) {
+    let Some(cell) = cells.get_mut(index) else {
+        return;
+    };
+    cell.glyph = match (cell.glyph, glyph) {
+        (' ', next) => next,
+        (current, next) if current == next => current,
+        ('─', next) | (next, '─') => next,
+        ('/', '\\') | ('\\', '/') => '×',
+        ('│', '/') | ('/', '│') | ('│', '\\') | ('\\', '│') => '┼',
+        _ => '┼',
+    };
+    if color != Color::DarkGray || cell.color == Color::Reset {
+        cell.color = color;
     }
+}
+
+fn graph_line(cells: &[GraphCell]) -> Line<'static> {
+    Line::from(
+        cells
+            .iter()
+            .filter(|cell| cell.glyph != '\0')
+            .map(|cell| {
+                Span::styled(
+                    cell.glyph.to_string(),
+                    Style::default().fg(cell.color).add_modifier(cell.modifier),
+                )
+            })
+            .collect::<Vec<_>>(),
+    )
+}
+
+fn graph_put_text(
+    cells: &mut [GraphCell],
+    start: usize,
+    text: &str,
+    color: Color,
+    modifier: Modifier,
+) {
+    let mut column = start;
+    for glyph in text.chars() {
+        let width = Span::raw(glyph.to_string()).width();
+        if width == 0 {
+            continue;
+        }
+        if column + width > cells.len() {
+            break;
+        }
+        cells[column] = GraphCell {
+            glyph,
+            color,
+            modifier,
+        };
+        for continuation in &mut cells[column + 1..column + width] {
+            continuation.glyph = '\0';
+        }
+        column += width;
+    }
+}
+
+fn graph_caption(title: &str, width: usize) -> String {
+    if Span::raw(title).width() <= width {
+        return title.to_owned();
+    }
+    let mut text = String::new();
+    let mut used = 0;
+    for glyph in title.chars() {
+        let glyph_width = Span::raw(glyph.to_string()).width();
+        if used + glyph_width >= width {
+            break;
+        }
+        text.push(glyph);
+        used += glyph_width;
+    }
+    if width > 0 {
+        text.push('…');
+    }
+    text
 }
 
 fn draw_graph(frame: &mut Frame<'_>, area: Rect, app: &App) {
@@ -972,153 +1044,254 @@ fn draw_graph(frame: &mut Frame<'_>, area: Rect, app: &App) {
         .map(|ticket| (ticket.id.as_str(), ticket))
         .collect::<HashMap<_, _>>();
     let selected = app.selected_ticket();
-    let selected_id = selected.map(|ticket| ticket.id.clone());
-    let selected_dependencies = selected
-        .map(|ticket| {
-            ticket
-                .dependencies
-                .iter()
-                .map(String::as_str)
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_default();
-    let selected_dependents = selected_id
-        .as_deref()
-        .map(|id| {
-            app.tickets
-                .iter()
-                .filter(|ticket| {
-                    ticket
-                        .dependencies
-                        .iter()
-                        .any(|dependency| dependency == id)
-                })
-                .map(|ticket| ticket.id.as_str())
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_default();
-    let (edges, node_lanes, last_dependent_rows) = graph_layout(&tickets);
-    let lane_count = node_lanes.iter().copied().max().map_or(1, |lane| lane + 1);
-    let node_column = lane_count.saturating_sub(1).saturating_mul(2);
-    let graph_width = node_column + 1;
-    let mut graph_rows = vec![vec![GraphCell::default(); graph_width]; tickets.len()];
-    let mut rail_colors = vec![vec![(Color::DarkGray, 0_u8); graph_width]; tickets.len()];
+    let selected_id = selected.map(|ticket| ticket.id.as_str());
+    let (edges, mut layers, depths, missing) = graph_layers(&tickets, &tickets_by_id);
+    let max_parallel = layers.iter().map(Vec::len).max().unwrap_or(1);
+    let mut columns = vec![0; tickets.len()];
+    let mut parent_centers = vec![0.0_f64; tickets.len()];
+    let mut furthest_targets = vec![0; tickets.len()];
     for edge in &edges {
-        let source_column = node_lanes[edge.source] * 2;
-        let target_column = node_lanes[edge.target] * 2;
-        let edge_color = if selected_id.as_deref() == Some(tickets[edge.source].id.as_str()) {
+        furthest_targets[edge.source] = furthest_targets[edge.source].max(depths[edge.target]);
+    }
+
+    // Keep parents of an early join together, and order later joins by their
+    // parents' positions. Short branches stay beside each other; long branches
+    // retain a separate rail until their own join.
+    for (depth, layer) in layers.iter_mut().enumerate() {
+        for index in layer.iter().copied() {
+            let parents = edges
+                .iter()
+                .filter(|edge| edge.target == index)
+                .map(|edge| columns[edge.source])
+                .collect::<Vec<_>>();
+            parent_centers[index] = if parents.is_empty() {
+                max_parallel.saturating_sub(1) as f64 * 2.0
+            } else {
+                parents.iter().sum::<usize>() as f64 / parents.len() as f64
+            };
+        }
+        layer.sort_by(|left, right| {
+            parent_centers[*left]
+                .total_cmp(&parent_centers[*right])
+                .then(furthest_targets[*left].cmp(&furthest_targets[*right]))
+                .then(tickets[*left].id.cmp(&tickets[*right].id))
+        });
+        let center = if depth == 0 {
+            max_parallel.saturating_sub(1) as f64 * 2.0
+        } else {
+            layer
+                .iter()
+                .map(|index| parent_centers[*index])
+                .sum::<f64>()
+                / layer.len() as f64
+        };
+        let start = ((center - layer.len().saturating_sub(1) as f64 * 2.0).max(0.0) / 2.0).round()
+            as usize
+            * 2;
+        for (slot, index) in layer.iter().copied().enumerate() {
+            columns[index] = start + slot * 4;
+        }
+    }
+
+    let mut graph_end = columns.iter().copied().max().unwrap_or(0);
+    let mut rails = Vec::with_capacity(edges.len());
+    for edge in &edges {
+        let source_column = columns[edge.source];
+        let collides = (depths[edge.source] + 1..depths[edge.target]).any(|depth| {
+            layers[depth]
+                .iter()
+                .any(|index| columns[*index] == source_column)
+        });
+        let rail = if collides {
+            graph_end += 4;
+            graph_end
+        } else {
+            source_column
+        };
+        rails.push(rail);
+    }
+    let mut gaps = vec![2; layers.len().saturating_sub(1)];
+    for (edge, rail) in edges.iter().zip(&rails) {
+        for boundary in depths[edge.source]..depths[edge.target] {
+            let source = if boundary == depths[edge.source] {
+                columns[edge.source]
+            } else {
+                *rail
+            };
+            let target = if boundary + 1 == depths[edge.target] {
+                columns[edge.target]
+            } else {
+                *rail
+            };
+            gaps[boundary] = gaps[boundary].max(source.abs_diff(target));
+        }
+    }
+    let mut node_rows = vec![1; layers.len()];
+    for depth in 1..layers.len() {
+        node_rows[depth] = node_rows[depth - 1] + gaps[depth - 1] + 1;
+    }
+    let content_width = area.width.saturating_sub(4) as usize;
+    let scale = if content_width >= 64 { 4 } else { 2 };
+    let title_width = scale * 4 - 1;
+    let left_padding = title_width / 2 + 1;
+    let display_column = |column: usize| left_padding + column * scale;
+    let row_count = node_rows.last().map_or(0, |row| row + 1);
+    let mut rows = vec![vec![GraphCell::default(); content_width]; row_count];
+    for (edge, rail) in edges.iter().zip(&rails) {
+        let color = if selected_id == Some(tickets[edge.source].id.as_str()) {
             Color::Cyan
-        } else if selected_id.as_deref() == Some(tickets[edge.target].id.as_str()) {
+        } else if selected_id == Some(tickets[edge.target].id.as_str()) {
             Color::Green
         } else {
             Color::DarkGray
         };
-        let color_rank = u8::from(edge_color != Color::DarkGray);
-        for row_index in edge.source + 1..=edge.target {
-            graph_rows[row_index][source_column].ports |= GRAPH_UP;
-            if row_index < last_dependent_rows[edge.source] {
-                graph_rows[row_index][source_column].ports |= GRAPH_DOWN;
-            }
-            if row_index == edge.target && source_column != target_column {
-                let (start, end, source_port, target_port) = if source_column < target_column {
-                    (source_column, target_column, GRAPH_RIGHT, GRAPH_LEFT)
+        for boundary in depths[edge.source]..depths[edge.target] {
+            let source = if boundary == depths[edge.source] {
+                columns[edge.source]
+            } else {
+                *rail
+            };
+            let target = if boundary + 1 == depths[edge.target] {
+                columns[edge.target]
+            } else {
+                *rail
+            };
+            let gap = gaps[boundary];
+            let mut previous = source;
+            for step in 1..gap {
+                let column = (source as f64
+                    + (target as f64 - source as f64) * step as f64 / gap as f64)
+                    .floor() as usize;
+                let glyph = if column > previous {
+                    '\\'
+                } else if column < previous {
+                    '/'
                 } else {
-                    (target_column, source_column, GRAPH_LEFT, GRAPH_RIGHT)
+                    '│'
                 };
-                graph_rows[row_index][source_column].ports |= source_port;
-                for column in start + 1..end {
-                    graph_rows[row_index][column].ports |= GRAPH_LEFT | GRAPH_RIGHT;
+                let display = display_column(column);
+                let previous_display = display_column(previous);
+                if display != previous_display {
+                    for across in display.min(previous_display) + 1..display.max(previous_display) {
+                        graph_cell_set(&mut rows[node_rows[boundary] + step], across, '─', color);
+                    }
                 }
-                graph_rows[row_index][target_column].ports |= target_port;
+                graph_cell_set(&mut rows[node_rows[boundary] + step], display, glyph, color);
+                previous = column;
             }
-            let color_end = if row_index == edge.target {
-                source_column.max(target_column)
-            } else {
-                source_column
-            };
-            let color_start = if row_index == edge.target {
-                source_column.min(target_column)
-            } else {
-                source_column
-            };
-            for column in color_start..=color_end {
-                if color_rank >= rail_colors[row_index][column].1 {
-                    rail_colors[row_index][column] = (edge_color, color_rank);
+            if boundary + 1 < depths[edge.target] {
+                for row in node_rows[boundary + 1] - 1..=node_rows[boundary + 1] {
+                    graph_cell_set(&mut rows[row], display_column(target), '│', color);
                 }
             }
         }
     }
 
-    let content_width = area.width.saturating_sub(4) as usize;
-    let items = tickets
-        .iter()
-        .enumerate()
-        .map(|(row_index, ticket)| {
-            let state = dependency_state(ticket, &tickets_by_id);
-            let state_color = match state {
-                "READY" => Color::Green,
-                "WAITING" => Color::Yellow,
-                _ => Color::Red,
-            };
-            let node_color = if selected_id.as_deref() == Some(ticket.id.as_str()) {
+    let common_prefix = tickets
+        .first()
+        .and_then(|ticket| ticket.id.rsplit_once('-'))
+        .map(|(prefix, _)| format!("{prefix}-"))
+        .filter(|prefix| tickets.iter().all(|ticket| ticket.id.starts_with(prefix)));
+    let label_start = (display_column(graph_end) + title_width / 2 + 4).min(content_width);
+    let mut ticket_lines = vec![None; tickets.len()];
+    for (depth, layer) in layers.iter().enumerate() {
+        let row_index = node_rows[depth];
+        let label_width = content_width.saturating_sub(label_start) / layer.len().max(1);
+        for (slot, index) in layer.iter().copied().enumerate() {
+            let ticket = tickets[index];
+            let is_selected = selected_id == Some(ticket.id.as_str());
+            let color = if is_selected {
                 Color::Yellow
-            } else if selected_dependencies
-                .iter()
-                .any(|dependency| *dependency == ticket.id)
-            {
+            } else if selected.is_some_and(|item| item.dependencies.contains(&ticket.id)) {
                 Color::Green
-            } else if selected_dependents.contains(&ticket.id.as_str()) {
+            } else if selected_id.is_some_and(|id| ticket.dependencies.iter().any(|dep| dep == id))
+            {
                 Color::Cyan
             } else {
                 dependency_color(&ticket.status)
             };
-            let tail = format!("{} · {state}", status_label(&ticket.status));
-            let fixed_width =
-                graph_width + 1 + ticket.id.chars().count() + 2 + tail.chars().count() + 2;
-            let title_width = content_width.saturating_sub(fixed_width);
-            let mut spans = Vec::with_capacity(graph_width + 6);
-            for column in 0..graph_width {
-                let glyph = if column == node_lanes[row_index] * 2 {
-                    "●"
+            ticket_lines[index] = Some(row_index);
+            graph_put_text(
+                &mut rows[row_index],
+                display_column(columns[index]),
+                if is_selected { "◉" } else { "●" },
+                color,
+                Modifier::BOLD,
+            );
+            let title = graph_caption(&ticket.title, title_width);
+            let title_column = display_column(columns[index])
+                .saturating_sub(Span::raw(title.as_str()).width() / 2);
+            graph_put_text(
+                &mut rows[row_index - 1],
+                title_column,
+                &title,
+                if is_selected {
+                    Color::Yellow
                 } else {
-                    graph_glyph(graph_rows[row_index][column].ports)
-                };
-                let color = if column == node_lanes[row_index] * 2 {
-                    node_color
+                    Color::Gray
+                },
+                Modifier::DIM,
+            );
+            let id = common_prefix
+                .as_ref()
+                .and_then(|prefix| ticket.id.strip_prefix(prefix))
+                .unwrap_or(ticket.id.as_str());
+            let id = truncate(id, label_width.saturating_sub(5));
+            let column = label_start + slot * label_width;
+            graph_put_text(&mut rows[row_index], column, &id, color, Modifier::BOLD);
+            let readiness = dependency_state(ticket, &tickets_by_id);
+            graph_put_text(
+                &mut rows[row_index],
+                column + id.chars().count() + 1,
+                if readiness == "READY" { "R" } else { "W" },
+                if readiness == "READY" {
+                    Color::Green
                 } else {
-                    rail_colors[row_index][column].0
-                };
-                spans.push(Span::styled(glyph, Style::default().fg(color)));
-            }
-            spans.push(Span::raw(" "));
-            spans.push(Span::styled(
-                ticket.id.as_str(),
-                Style::default()
-                    .fg(Color::Cyan)
-                    .add_modifier(Modifier::BOLD),
-            ));
-            spans.push(Span::raw("  "));
-            spans.push(Span::styled(
-                truncate(&ticket.title, title_width),
-                Style::default().fg(Color::White),
-            ));
-            spans.push(Span::raw("  "));
-            spans.push(Span::styled(tail, Style::default().fg(state_color)));
-            ListItem::new(Line::from(spans))
-        })
+                    Color::DarkGray
+                },
+                Modifier::empty(),
+            );
+        }
+    }
+    let mut items = rows
+        .iter()
+        .map(|row| ListItem::new(graph_line(row)))
         .collect::<Vec<_>>();
-
+    if !missing.is_empty() && !items.is_empty() {
+        items.push(ListItem::new(Line::from("")));
+    }
+    for index in missing {
+        let ticket = tickets[index];
+        items.push(ListItem::new(Line::from(Span::styled(
+            ticket.title.as_str(),
+            Style::default().fg(Color::Gray).add_modifier(Modifier::DIM),
+        ))));
+        ticket_lines[index] = Some(items.len());
+        let unresolved = ticket
+            .dependencies
+            .iter()
+            .filter(|id| !tickets_by_id.contains_key(id.as_str()))
+            .cloned()
+            .collect::<Vec<_>>();
+        items.push(ListItem::new(Line::from(vec![
+            Span::styled("!  ", Style::default().fg(Color::Red)),
+            Span::styled(
+                format!("{}  missing {}", ticket.id, unresolved.join(", ")),
+                Style::default().fg(Color::Red),
+            ),
+        ])));
+    }
     let mut state = ListState::default();
-    state
-        .select((!tickets.is_empty()).then_some(app.selected.min(tickets.len().saturating_sub(1))));
+    state.select(ticket_lines.get(app.selected).copied().flatten());
+    let prefix_label = common_prefix.map_or(String::new(), |prefix| format!(" · {prefix}*"));
     frame.render_stateful_widget(
         List::new(items)
             .block(Block::default().borders(Borders::ALL).title(format!(
-                "Dependencies  {}  (j/k select · ● ticket · rails show prerequisites)",
-                tickets.len()
+                "Dependencies  {}{}  ·  same row = parallel",
+                tickets.len(),
+                prefix_label
             )))
-            .highlight_style(Style::default().bg(Color::Rgb(39, 48, 68)).fg(Color::White))
-            .highlight_symbol("› "),
+            .highlight_symbol("  "),
         area,
         &mut state,
     );
@@ -1311,7 +1484,8 @@ fn draw_help(frame: &mut Frame<'_>) {
         Line::from("Enter / d     toggle ticket details"),
         Line::from("/             filter by text"),
         Line::from("C             show or hide closed tickets"),
-        Line::from("Dependencies  branch rails connect prerequisites and joins"),
+        Line::from("Dependencies  same row = parallel; / and \\ show edges"),
+        Line::from("R ready · W waiting · ! missing · × crossing"),
         Line::from("r             reload from .tickets/ (also watched automatically)"),
         Line::from("q / Esc       close the board"),
         Line::from(""),
