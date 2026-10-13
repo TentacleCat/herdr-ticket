@@ -1,12 +1,11 @@
 ---
 id: DAG-DEMO-04
 status: open
-priority: 2
+priority: 1
 type: feature
 deps:
-  - DAG-DEMO-02
-  - DAG-DEMO-03
+  - DAG-DEMO-01
 ---
-# Integrate the graph and loader
+# Design the migration plan
 
-This join waits for both branches to complete.
+This third branch defines the schema compatibility work needed by storage.

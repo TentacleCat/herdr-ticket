@@ -5,7 +5,6 @@ priority: 0
 type: feature
 deps: []
 ---
-# Agree on the shared ticket format
+# Set the shared task contract
 
-Completed prerequisite that fans out into two independent implementation
-branches.
+Completed prerequisite that fans out into backend, console, and schema work.

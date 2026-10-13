@@ -1,12 +1,12 @@
 ---
 id: DAG-DEMO-06
 status: open
-priority: 4
-type: task
+priority: 2
+type: feature
 deps:
-  - DAG-DEMO-99
+  - DAG-DEMO-03
+  - DAG-DEMO-05
 ---
-# Show an unresolved dependency
+# Connect the console to live task data
 
-This edge is intentionally unresolved so the DAG view can demonstrate its
-missing-ticket state.
+The console and indexed store converge in this integration step.

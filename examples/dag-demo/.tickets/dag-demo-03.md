@@ -6,6 +6,6 @@ type: feature
 deps:
   - DAG-DEMO-01
 ---
-# Render dependency relationships
+# Build the workflow console
 
-This branch can proceed independently of the ticket loader.
+The console can proceed independently, then joins the live task data path.

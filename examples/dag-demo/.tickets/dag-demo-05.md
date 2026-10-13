@@ -1,11 +1,12 @@
 ---
 id: DAG-DEMO-05
 status: open
-priority: 3
-type: task
+priority: 2
+type: feature
 deps:
+  - DAG-DEMO-02
   - DAG-DEMO-04
 ---
-# Prepare a release preview
+# Add the indexed task store
 
-This downstream ticket is unlocked by the integration step.
+Backend and migration work merge here before the store can be integrated.

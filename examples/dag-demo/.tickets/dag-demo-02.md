@@ -6,6 +6,6 @@ type: feature
 deps:
   - DAG-DEMO-01
 ---
-# Add the ticket loader
+# Build the API and persistence skeleton
 
-This branch is currently in progress.
+This backend branch is in progress and later joins the schema work.
