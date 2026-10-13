@@ -1,0 +1,31 @@
+src/ui.rs
+  s_a4167ddb55b255::t_3b9c0299706b50 188-194,202,214,246-247
+  s_a4167ddb55b255::t_27976d7c392e9f 22-23,483-491,494-496,498-503,506,509-515,517-529,533,536,540,845-849,855,905
+  s_a4167ddb55b255::t_9cc5ae8accb53a 659,675,843-844,850-854,856-904,906-929,932-933,938-941
+  s_a4167ddb55b255::t_27b71bbfa5bc2c 21,24-25,27,34,43,56
+  s_a4167ddb55b255::t_3e23ccf64f9376 26
+  s_a4167ddb55b255::t_d50d64347e1885 1105,1115
+  s_a4167ddb55b255::t_50e7a5eb433e43 477-482,492-493,497,504-505,507-508,516,530-532,534-535,537-539,546-565,943
+  s_a4167ddb55b255::t_0b07f6cc1d2484 541-545,930-931,934-937
+  s_a4167ddb55b255::t_51d09f69bd66af 40,42,44,46-47
+  s_a4167ddb55b255::t_cba07bb411d06a 248-249
+  s_a4167ddb55b255::t_240f0c022de407 566
+  s_a4167ddb55b255::t_56eeea3b0bcc17 942
+  s_a4167ddb55b255::t_9a6c23a23820d7 944
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "31b50a9a75fa5f4c490a4d4869d161620b932db9",
+  "prompts": {},
+  "sessions": {
+    "s_a4167ddb55b255": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1352a-3a1f-7dd0-83d2-750dae52ee98",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "TentacleCat <131333217+TentacleCat@users.noreply.github.com>"
+    }
+  }
+}
