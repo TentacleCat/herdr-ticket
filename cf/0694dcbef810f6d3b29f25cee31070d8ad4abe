@@ -1,0 +1,45 @@
+examples/dag-demo/.tickets/dag-demo-11.md
+  s_a4167ddb55b255::t_92ea7043dd715d 10
+examples/dag-demo/.tickets/dag-demo-06.md
+  s_a4167ddb55b255::t_92ea7043dd715d 10
+examples/dag-demo/.tickets/dag-demo-09.md
+  s_a4167ddb55b255::t_92ea7043dd715d 9
+examples/dag-demo/README.md
+  s_a4167ddb55b255::t_1759060d990157 43
+  s_a4167ddb55b255::t_442e92040f59ce 11-13,19-42,44-45,48
+  s_a4167ddb55b255::t_f0306cd137006f 7-8,10,14-16,49-52
+examples/dag-demo/.tickets/dag-demo-04.md
+  s_a4167ddb55b255::t_92ea7043dd715d 9
+examples/dag-demo/.tickets/dag-demo-01.md
+  s_a4167ddb55b255::t_92ea7043dd715d 8
+examples/dag-demo/.tickets/dag-demo-02.md
+  s_a4167ddb55b255::t_92ea7043dd715d 9
+examples/dag-demo/.tickets/dag-demo-03.md
+  s_a4167ddb55b255::t_92ea7043dd715d 9
+examples/dag-demo/.tickets/dag-demo-08.md
+  s_a4167ddb55b255::t_92ea7043dd715d 10
+examples/dag-demo/.tickets/dag-demo-05.md
+  s_a4167ddb55b255::t_92ea7043dd715d 10
+examples/dag-demo/.tickets/dag-demo-12.md
+  s_a4167ddb55b255::t_92ea7043dd715d 9
+examples/dag-demo/.tickets/dag-demo-10.md
+  s_a4167ddb55b255::t_92ea7043dd715d 9
+examples/dag-demo/.tickets/dag-demo-07.md
+  s_a4167ddb55b255::t_92ea7043dd715d 9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "cf0694dcbef810f6d3b29f25cee31070d8ad4abe",
+  "prompts": {},
+  "sessions": {
+    "s_a4167ddb55b255": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1352a-3a1f-7dd0-83d2-750dae52ee98",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "TentacleCat <131333217+TentacleCat@users.noreply.github.com>"
+    }
+  }
+}
