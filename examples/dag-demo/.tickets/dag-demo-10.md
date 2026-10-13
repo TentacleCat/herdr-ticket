@@ -6,6 +6,6 @@ type: task
 deps:
   - DAG-DEMO-08
 ---
-# Prepare the canary rollout
+# Canary rollout
 
 Canary preparation runs alongside the security review after a candidate exists.

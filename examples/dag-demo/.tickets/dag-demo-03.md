@@ -6,6 +6,6 @@ type: feature
 deps:
   - DAG-DEMO-01
 ---
-# Build the workflow console
+# Console
 
 The console can proceed independently, then joins the live task data path.

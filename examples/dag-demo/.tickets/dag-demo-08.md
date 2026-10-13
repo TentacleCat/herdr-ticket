@@ -7,6 +7,6 @@ deps:
   - DAG-DEMO-06
   - DAG-DEMO-07
 ---
-# Prepare the release candidate
+# Release RC
 
 The release candidate waits for both end-to-end integration and load testing.

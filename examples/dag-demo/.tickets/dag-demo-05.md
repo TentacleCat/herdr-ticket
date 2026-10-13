@@ -7,6 +7,6 @@ deps:
   - DAG-DEMO-02
   - DAG-DEMO-04
 ---
-# Add the indexed task store
+# Indexed store
 
 Backend and migration work merge here before the store can be integrated.

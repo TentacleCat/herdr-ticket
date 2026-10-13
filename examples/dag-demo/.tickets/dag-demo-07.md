@@ -6,7 +6,7 @@ type: test
 deps:
   - DAG-DEMO-05
 ---
-# Stress test the task store
+# Load test
 
 This parallel validation branch starts from the indexed store and joins the
 console integration at release preparation.

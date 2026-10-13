@@ -7,6 +7,6 @@ deps:
   - DAG-DEMO-03
   - DAG-DEMO-05
 ---
-# Connect the console to live task data
+# Console join
 
 The console and indexed store converge in this integration step.

@@ -6,6 +6,6 @@ type: review
 deps:
   - DAG-DEMO-08
 ---
-# Review access and data retention
+# Security review
 
 Security and data-retention review is one of two release sign-off branches.

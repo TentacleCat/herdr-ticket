@@ -6,6 +6,6 @@ type: feature
 deps:
   - DAG-DEMO-01
 ---
-# Design the migration plan
+# Migration plan
 
 This third branch defines the schema compatibility work needed by storage.

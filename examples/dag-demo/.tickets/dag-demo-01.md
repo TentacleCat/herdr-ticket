@@ -5,6 +5,6 @@ priority: 0
 type: feature
 deps: []
 ---
-# Set the shared task contract
+# Shared contract
 
 Completed prerequisite that fans out into backend, console, and schema work.

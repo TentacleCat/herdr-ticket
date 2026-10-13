@@ -7,6 +7,6 @@ deps:
   - DAG-DEMO-09
   - DAG-DEMO-10
 ---
-# Ship the validated release
+# Release
 
 The final rollout joins security approval and canary preparation.

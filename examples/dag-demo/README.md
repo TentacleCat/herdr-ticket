@@ -1,37 +1,52 @@
 # Dependency DAG demo
 
-Run the board from the repository root:
-
 ```sh
 cargo run -- --root examples/dag-demo
 ```
 
-Press `Tab` three times to open the Dependencies tab, then press `C` to show
-the completed root ticket. Use `j` / `k` to move through the graph. Selecting a
-ticket highlights its prerequisites and the tickets it unlocks; the Details
-panel lists both sets by ID. Select `DAG-DEMO-08` to inspect a two-input join
-with two downstream branches. Select `DAG-DEMO-12` to see how a missing
-dependency is reported.
+Press `Tab` three times for Dependencies, `C` to show the completed root,
+and `d` for a full-width graph. Use `j` / `k` to select tasks and scroll.
 
-The graph uses compact vertical rails, like a terminal commit graph: a task is
-a dot, a prerequisite path stays on its rail, and branch and join points are
-drawn where paths split or meet. With `C` enabled, the sample reads like this
-(the live view colors the selected task and its connected paths):
+The graph uses compact lanes and continuous diagonal paths. Tasks on the same
+row can run in parallel. Each node has a centered caption directly above it, styled in dim gray.
+IDs and readiness appear on the right, in the same left-to-right order as the
+nodes. Captions are shortened when needed to keep parallel tasks separate. The header shows the shared ID prefix
+(`DAG-DEMO-*`); labels use the suffix to leave more room for task titles.
+`◉` is the selected task, `R` means ready, `W` means waiting, and `!` means a
+missing prerequisite. Selection colors its prerequisites and dependents.
 
 ```text
-● DAG-DEMO-01  shared task contract (closed)
-├─● DAG-DEMO-02  API and persistence
-├─┼─● DAG-DEMO-03  workflow console
-● │ │ DAG-DEMO-04  migration plan
-●─┘ │ DAG-DEMO-05  indexed task store
-├─●─┘ DAG-DEMO-06  console integration
-● │ DAG-DEMO-07  load test
-●─┘ DAG-DEMO-08  release candidate
-├─● DAG-DEMO-09  security review
-● │ DAG-DEMO-10  canary rollout
-●─┘ DAG-DEMO-11  validated release
-● DAG-DEMO-12  missing prerequisite · MISSING
+                 Shared contract
+                        ◉                          01 R
+                    /───│───\
+                /───    │    ───\
+            /───        │        ───\
+  API skeleton   Migration plan      Console
+        ●               ●               ●          02 R           04 R           03 R
+         ───\       /───                │
+          Indexed store                 │
+                ●                       │          05 W
+                │───\               /───
+                │    ───\           │
+                │        ───\   /───
+            Load test     Console join
+                ●               ●                  07 W                  06 W
+                 ───\       /───
+                   Release RC
+                        ●                          08 W
+                    /─── ───\
+         Security review Canary rollout
+                ●               ●                  09 W                  10 W
+                 ───\       /───
+                     Release
+                        ●                          11 W
+
+Missing dependency
+!  DAG-DEMO-12  missing DAG-DEMO-99
 ```
 
-The missing prerequisite is intentionally absent from the rails and remains
-visible as `MISSING` in the task row and details.
+The demo uses concise task titles; the terminal truncates longer captions. The three initial branches are
+ordered `02`, `04`, `03` to put the parents of `05` together. The console
+branch stays on its own rail beside `05`, then joins the console integration
+at `06`. It never joins `05`. The release candidate joins `06` and `07`, then
+forks again into the two release sign-off tasks.

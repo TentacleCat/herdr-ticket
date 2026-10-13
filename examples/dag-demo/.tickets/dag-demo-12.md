@@ -6,7 +6,7 @@ type: task
 deps:
   - DAG-DEMO-99
 ---
-# Demonstrate a missing external prerequisite
+# Missing dependency
 
 This intentionally unresolved edge shows how the graph reports a dependency
 that has no matching ticket.
