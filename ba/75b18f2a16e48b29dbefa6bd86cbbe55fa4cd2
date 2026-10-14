@@ -1,0 +1,25 @@
+.tickets/ht-jnlc.md
+  s_fe38e302e08a49::t_329395f02193ef 4
+  s_fe38e302e08a49::t_2c034a980539f5 1-2,5-16
+  s_fe38e302e08a49::t_f64b16e24bd40a 3
+.tickets/ht-zjtk.md
+  s_fe38e302e08a49::t_7d91644b392437 1-14
+.tickets/ht-x9ru.md
+  s_fe38e302e08a49::t_4b359ae4c6b32e 1-14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ba75b18f2a16e48b29dbefa6bd86cbbe55fa4cd2",
+  "prompts": {},
+  "sessions": {
+    "s_fe38e302e08a49": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a13545-6a9e-7413-888c-b304d240b4a9",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "TentacleCat <131333217+TentacleCat@users.noreply.github.com>"
+    }
+  }
+}
